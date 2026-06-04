@@ -1,6 +1,6 @@
 # Drone Range Trade Study
 
-Interactive range vs. cruise speed trade study for a long-range fixed-wing drone — 1 000 km target range, 300 km/h max speed, ~1 kg payload (ETH Zürich ASL focus project).
+Interactive range vs. cruise speed trade study for a long-range fixed-wing drone — 1'000 km target range, 300 km/h max speed, ~1 kg payload.
 
 Drag the sliders to explore how airframe geometry and propulsion choices shift the range envelope across three powertrain architectures.
 
