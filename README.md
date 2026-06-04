@@ -1,8 +1,8 @@
 # Drone Range Trade Study
 
-A range vs. cruise speed trade study for the ETH Zürich ASL long-range drone — 1 000 km range, 300 km/h max speed, 1 kg payload.
+Interactive range vs. cruise speed trade study for a long-range fixed-wing drone — 1 000 km target range, 300 km/h max speed, ~1 kg payload (ETH Zürich ASL focus project).
 
-Drag sliders in real time to explore how airframe and propulsion choices shift the range envelope.
+Drag the sliders to explore how airframe geometry and propulsion choices shift the range envelope across three powertrain architectures.
 
 ---
 
@@ -10,7 +10,7 @@ Drag sliders in real time to explore how airframe and propulsion choices shift t
 
 ![Simulation screenshot](screenshot.png)
 
-*Dots mark the best-range speed for each propulsion type. The dashed gold line is the 1 000 km target; the dotted red line is the 300 km/h maximum speed requirement.*
+*Dots mark the best-range speed for each propulsion type. The dashed gold line is the 1 000 km target; the dotted red line is the 300 km/h speed requirement.*
 
 ---
 
@@ -18,75 +18,110 @@ Drag sliders in real time to explore how airframe and propulsion choices shift t
 
 Long range and high speed pull in opposite directions:
 
-- Flying faster increases parasite drag quadratically — burning through energy reserves quickly
-- Flying slower reduces parasite drag but increases induced drag and time aloft
-- The optimal cruise speed (minimum drag) is set by the drag polar and wing geometry
-- Propulsion type (electric vs. ICE vs. hybrid) changes how much useful energy fits in the weight budget
-
-This tool models those trade-offs and lets you explore them interactively.
+- Flying faster increases parasite drag quadratically, burning through energy reserves quickly
+- Flying slower reduces parasite drag but increases induced drag
+- The optimal cruise speed (minimum drag = maximum L/D) is set by the drag polar and wing geometry
+- Propulsion type changes how much useful energy fits within the mass budget
 
 ---
 
 ## Physics Model
 
-Level, constant-altitude flight using a parabolic drag polar:
+### Atmosphere
+
+ISA troposphere (valid to ~11 km):
 
 ```
+T(h) = 288.15 − 0.0065 · h
+ρ(h) = 101325 · (T/288.15)^5.256 / (287.05 · T)
+```
+
+### Aerodynamics
+
+Level, constant-altitude cruise with a parabolic drag polar:
+
+```
+CL = 2W / (ρ V² S)
 CD = CD₀ + CL² / (π · AR · e)
+D  = ½ ρ V² S · CD
 ```
 
-| Symbol | Meaning |
-|--------|---------|
-| `CD₀` | Zero-lift (parasite) drag coefficient |
-| `AR` | Wing aspect ratio |
-| `e` | Oswald efficiency factor |
-| `CL` | Lift coefficient — set by W = L at each speed |
+| Symbol | Meaning | Default |
+|--------|---------|---------|
+| `CD₀` | Zero-lift (parasite) drag coefficient | 0.025 |
+| `AR` | Wing aspect ratio | 14 |
+| `e` | Oswald efficiency factor | 0.85 |
+| `CLmax` | Maximum lift coefficient (sets stall speed) | 1.30 |
 
-**Range model** — R = E_useful / D
+### Electric Range
 
-At constant speed and altitude, power required is P = D·V, so:
-
-```
-R = V · (E / P) = E / D
-```
-
-Maximum range occurs at minimum drag — the speed where parasite drag equals induced drag.
-
-**Atmosphere** — ISA (International Standard Atmosphere):
+Batteries don't lose mass, so weight — and drag — stay constant throughout cruise:
 
 ```
-ρ(h) = p(h) / (287.05 · T(h))
+R_elec = (m_batt · ε_bat · η_e · η_prop) / D
 ```
 
----
+| Symbol | Meaning | Value |
+|--------|---------|-------|
+| `m_batt` | Battery mass (80% of propulsion budget) | — |
+| `ε_bat` | Battery specific energy | slider (Wh/kg) |
+| `η_e` | Motor + ESC efficiency | 0.85 |
+| `η_prop` | Propeller shaft-to-thrust efficiency | 0.85 |
 
-## Propulsion systems
+Maximum range occurs at minimum drag speed (peak L/D).
 
-| System | Energy budget |
-|--------|--------------|
-| Electric | 80% of prop mass → battery @ slider Wh/kg × motor efficiency |
-| Fuel (ICE) | 85% of prop mass → fuel @ 11 800 Wh/kg × engine efficiency |
-| Hybrid | 40% battery + 60% fuel, both weighted by their own efficiencies |
+### Fuel (ICE) Range — Breguet
+
+As fuel burns the aircraft gets lighter, drag drops, and range extends beyond a simple E/D estimate. The propeller-aircraft Breguet equation captures this:
+
+```
+R_fuel = (η_f · H / g) · L/D_avg · ln(W_start / W_end)
+```
+
+| Symbol | Meaning | Value |
+|--------|---------|-------|
+| `η_f` | Overall fuel-to-thrust efficiency (η_thermal × η_prop) | 0.27 |
+| `H` | Fuel lower heating value | 11 800 Wh/kg |
+| `L/D_avg` | Average of start and end L/D (constant-speed approximation) | — |
+
+Fuel mass = 85% of propulsion budget.
+
+### Hybrid Range
+
+Fuel-first then electric on the lighter airframe:
+
+1. **Phase 1 (fuel):** Breguet on 60% of propulsion budget as fuel
+2. **Phase 2 (electric):** E/D on 40% of propulsion budget as battery, computed at the reduced post-burn weight
+
+### Shaft Power
+
+```
+P_shaft = D · V / η_prop   [kW]
+```
+
+Shown in the lower-right panel to indicate motor sizing requirements.
 
 ---
 
 ## Sliders
 
-### Airframe
 | Slider | Range | Effect |
 |--------|-------|--------|
-| MTOW | 5 – 60 kg | Total takeoff mass |
-| Wing area S | 0.2 – 4.0 m² | Shifts stall speed and lift-dependent drag |
-| Aspect ratio AR | 5 – 25 | Higher AR → less induced drag → more range |
-| CD₀ | 0.010 – 0.060 | Parasite drag — dominated by fuselage and interference |
+| MTOW | 5 – 60 kg | Total takeoff mass; scales weight, stall speed, and all range calculations |
+| Prop mass | 1 – 30 kg | Mass budget allocated to energy storage + motors |
+| Wing area S | 0.2 – 4.0 m² | Sets stall speed and the balance of parasite vs. induced drag |
+| Aspect ratio AR | 5 – 25 | Higher AR → lower induced drag → more range, at the cost of structural weight |
+| Altitude | 0 – 5 000 m | Lower density at altitude → higher TAS for the same lift → shifted drag curves |
+| Battery (Wh/kg) | 100 – 500 | Energy density technology level (250 Wh/kg ≈ current state of art) |
 
-### Propulsion
-| Slider | Range | Effect |
-|--------|-------|--------|
-| Prop mass fraction | 0.10 – 0.65 | Share of MTOW devoted to energy + motors |
-| Battery (Wh/kg) | 100 – 500 | Technology level — 250 Wh/kg is current state of art |
-| ICE efficiency | 0.18 – 0.40 | Engine + prop combined efficiency |
-| Altitude | 0 – 5 000 m | Lower air density → higher speed for same lift → more drag |
+---
+
+## Model Assumptions
+
+- Still-air cruise only — no climb, descent, wind, or reserves
+- Constant altitude and airspeed throughout (no step climbs)
+- Structural, avionics, and payload mass fixed at MTOW − prop mass (minimum 2 kg)
+- CD₀, Oswald factor, and CLmax fixed (not yet sliders)
 
 ---
 
@@ -97,6 +132,7 @@ Maximum range occurs at minimum drag — the speed where parasite drag equals in
 | Range | up to **1 000 km** |
 | Max speed | up to **300 km/h** |
 | Payload | ~**1 kg** (HD camera + sensors) |
+| MTOW | ~**22 kg** |
 
 ---
 
@@ -106,6 +142,8 @@ Maximum range occurs at minimum drag — the speed where parasite drag equals in
 pip install matplotlib numpy
 python main.py
 ```
+
+Requires Python 3.9+ and a display (uses the macOS native Matplotlib backend; change `matplotlib.use('MacOSX')` to `'TkAgg'` or `'Qt5Agg'` on other platforms).
 
 ---
 
